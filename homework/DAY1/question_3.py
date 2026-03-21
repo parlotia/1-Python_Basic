@@ -28,10 +28,10 @@ wlc_name = "WLC"
 wlc_ip = "10.1.1.3"
 wlc_role = "无线控制器"
 
-print("====================== IP地址规划表 =======================")
+print("=" * 22  +  "IP地址规划表" + "=" *25)
 print("设备名称\t\t管理地址\t\t角色")
-print("-----------------------------------------------------------")
+print("-" * 59)
 print(core_name + "\t\t" + core_ip + "\t\t" + core_role)
 print(firewall_name + "\t\t" + firewall_ip + "\t\t" + firewall_role)
 print(wlc_name + "\t\t\t" + wlc_ip + "\t\t" + wlc_role)
-print("===========================================================")
+print("=" * 59)
