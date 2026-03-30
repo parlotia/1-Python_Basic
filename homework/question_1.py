@@ -45,7 +45,7 @@ for line in lines:
 
     # 用正则表达式匹配这一行，把需要的信息都抓出来
     # (\S+) = 抓一段没有空格的内容（IP、端口等）
-    match = re.match(r'TCP Student (\S+):(\S+) Teacher (\S+):(\S+).*bytes (\S+), flags (\S+)', line)
+    match = re.match(r'TCP Student (\S+):(\S+) Teacher (\S+):(\S+).*bytes (\d+), flags (\S+)', line)
 
     # 把正则抓到的 6 个内容，按顺序赋值给变量
     src_ip, src_port, dst_ip, dst_port, bytes_, flags = match.groups()
