@@ -96,140 +96,76 @@ def qytang_multicmd(ip, username, password, cmd_list, enable='', wait_time=2, ve
       wait_time : 每条命令发送后等待设备响应的秒数
       verbose   : True 则打印每条命令的返回结果，False 则静默执行
     """
-    # ========================
-# 1. paramiko 交互模式测试脚本（题目要求：可直接粘贴运行）
-# 作用：手动测试SSH交互式连接、执行单条命令，验证交互逻辑正常
-# ========================
-# 导入SSH连接库：paramiko是Python用于SSH远程连接的核心库
-import paramiko
-# 导入时间库：用于延时等待设备响应，防止命令执行过快导致读取失败
-import time
-
-# 创建SSH客户端对象，模拟SSH终端工具
-ssh = paramiko.SSHClient()
-# 自动接受设备的SSH密钥，解决首次连接报错问题
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-# 建立SSH连接：配置设备IP、端口、认证信息等参数
-ssh.connect('10.10.1.200', port=22, username='admin', password='Cisc0123',
-            timeout=5, look_for_keys=False, allow_agent=False)
-
-# 开启交互式Shell（核心）：支持连续执行配置命令，保留命令执行上下文
-chan = ssh.invoke_shell()
-# 等待1秒，让设备完成终端初始化
-time.sleep(1)
-# 读取并打印设备登录后的提示符，确认连接成功
-print(chan.recv(2048).decode())
-
-# 执行命令：关闭分页（避免--More--阻塞），发送二进制格式命令+回车符
-chan.send(b'terminal length 0\n')
-time.sleep(1)
-# 读取并打印命令执行结果
-print(chan.recv(2048).decode())
-
-# 执行命令：查看设备版本信息
-chan.send(b'show version\n')
-time.sleep(2)
-print(chan.recv(4096).decode())
-
-# 执行命令：进入全局配置模式
-chan.send(b'config ter\n')
-time.sleep(1)
-print(chan.recv(2048).decode())
-
-# 执行命令：创建OSPF路由进程1
-chan.send(b'router ospf 1\n')
-time.sleep(1)
-print(chan.recv(2048).decode())
-
-# 关闭SSH连接，释放资源
-ssh.close()
-
-# 分割线：区分测试脚本与封装函数，便于查看执行结果
-print("=" * 60)
-print("         测试脚本执行完毕，开始封装函数")
-print("=" * 60)
-
-
-# ========================
-# 2. 封装可执行多条命令的函数（题目要求标准函数）
-# 函数名、参数、功能100%匹配题目要求
-# ========================
-def qytang_multicmd(ip, username, password, cmd_list, enable='', wait_time=2, verbose=True):
-    """
-    思科设备SSH交互式多命令执行函数
-    参数说明：
-      ip        : 设备管理IP地址
-      username  : SSH登录用户名
-      password  : SSH登录密码
-      cmd_list  : 命令列表，批量执行的所有命令
-      enable    : 特权模式密码，无密码则留空
-      wait_time : 每条命令执行后的等待时间（秒）
-      verbose   : 打印开关，True=打印输出，False=静默执行
-    """
-    # 初始化SSH客户端
+    # 1. 创建SSH客户端对象
     ssh = paramiko.SSHClient()
-    # 自动接受主机密钥
+    # 2. 自动添加主机密钥，避免首次连接报错
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+    
     try:
-        # 连接SSH设备
-        ssh.connect(hostname=ip,
-                    username=username,
-                    password=password,
-                    timeout=8,
-                    look_for_keys=False,
-                    allow_agent=False)
-
-        # 开启交互式终端
+        # 3. 连接设备
+        ssh.connect(
+            hostname=ip,
+            port=22,
+            username=username,
+            password=password,
+            timeout=5,
+            look_for_keys=False,
+            allow_agent=False
+        )
+        
+        # 4. 【核心】调用 invoke_shell() 模拟真实终端交互
         chan = ssh.invoke_shell()
+        # 等待终端初始化
         time.sleep(1)
-        # 清空设备初始回显，避免干扰命令输出
-        chan.recv(2048)
-
-        # ========================
-        # 自动进入特权模式（如果传入enable密码）
-        # ========================
+        
+        # 5. 处理 Enable 密码（如果提供了）
         if enable:
-            # 发送enable命令
-            chan.send(b'enable\n')
-            time.sleep(1)
-            # 发送enable密码
-            chan.send(enable.encode() + b'\n')
-            time.sleep(1)
-            # 清空提权后的回显
-            chan.recv(2048)
-
-        # ========================
-        # 批量循环执行命令列表
-        # ========================
+            # 先读取登录后的初始输出，判断是否在用户模式
+            output = chan.recv(2048).decode('utf-8', errors='ignore')
+            if '>' in output:
+                # 发送 enable 命令
+                chan.send(b'enable\n')
+                time.sleep(1)
+                # 发送 enable 密码
+                chan.send(f'{enable}\n'.encode())
+                time.sleep(1)
+        
+        # 6. 循环执行命令列表
+        all_output = ""
         for cmd in cmd_list:
-            # 发送命令 + 回车符
-            chan.send(cmd.encode() + b'\n')
-            # 等待设备响应
+            # 发送命令（注意要加换行符 \n，模拟回车）
+            chan.send(f'{cmd}\n'.encode())
+            # 等待设备执行命令并返回结果
             time.sleep(wait_time)
-            # 读取命令返回结果
+            
+            # 读取设备返回的输出
             output = chan.recv(65535).decode('utf-8', errors='ignore')
-
-            # 如果verbose开启，打印命令和执行结果
+            # 累加到总输出中
+            all_output += output
+            
+            # 如果 verbose=True，打印当前命令的输出
             if verbose:
                 print(f"\n--- {cmd} ---")
                 print(output)
-
-    # 捕获并打印所有连接/执行异常
+        
+        # 返回所有命令的总输出
+        return all_output
+        
     except Exception as e:
-        print("执行异常：", e)
-
-    # 无论是否报错，最终都会关闭SSH连接
+        print(f"连接或执行出错: {e}")
+        return ""
     finally:
+        # 7. 关闭SSH连接
         ssh.close()
 
-
-# ========================
-# 3. 函数测试：执行题目指定的命令列表
-# ========================
+# ==================== 测试要求：执行题目指定的命令列表 ====================
 if __name__ == '__main__':
-    # 题目要求的批量执行命令列表
+    # 填入你的设备信息
+    device_ip = '196.21.5.211'
+    user = 'admin'
+    pwd = 'Cisc0123'
+    
+    # 题目要求的测试命令列表
     cmd_list = [
         'terminal length 0',
         'show version',
@@ -238,14 +174,14 @@ if __name__ == '__main__':
         'network 10.0.0.0 0.0.0.255 area 0',
         'end',
     ]
-
-    # 调用封装好的函数，执行所有命令
+    
+    # 调用函数，执行命令并打印结果
     qytang_multicmd(
-        ip='10.10.1.200',
-        username='admin',
-        password='Cisc0123',
+        ip=device_ip,
+        username=user,
+        password=pwd,
         cmd_list=cmd_list,
-        enable='',          # 权限15，无需enable密码
-        wait_time=2,        # 每条命令等待2秒
-        verbose=True        # 打印所有执行结果
+        enable='',          # 你的权限是15，不需要enable密码，留空即可
+        wait_time=2,
+        verbose=True
     )
